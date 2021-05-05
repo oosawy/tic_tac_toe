@@ -1,4 +1,6 @@
 use std::io;
+use termion::event::Key;
+use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use tui::backend::TermionBackend;
 use tui::widgets::{Block, Borders};
@@ -9,11 +11,20 @@ fn main() -> io::Result<()> {
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|f| {
-        let size = f.size();
-        let block = Block::default().title("Block").borders(Borders::ALL);
-        f.render_widget(block, size);
-    })?;
+    loop {
+        terminal.clear()?;
 
-    Ok(())
+        terminal.draw(|f| {
+            let size = f.size();
+            let block = Block::default().title("Block").borders(Borders::ALL);
+            f.render_widget(block, size);
+        })?;
+
+        for event in io::stdin().keys() {
+            match event? {
+                Key::Char('q') => return Ok(()),
+                _ => {}
+            }
+        }
+    }
 }
