@@ -13,6 +13,12 @@ struct Point {
     y: u8,
 }
 
+impl Point {
+    fn new(x: u8, y: u8) -> Self {
+        Point { x, y }
+    }
+}
+
 struct Cursor {
     x: u8,
     y: u8,
@@ -29,7 +35,7 @@ impl Cursor {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum Piece {
     O,
     X,
@@ -64,6 +70,43 @@ impl Board {
     fn put(&mut self, point: &Point, piece: Piece) {
         self.pieces[Board::index_from_point(point)] = Some(piece)
     }
+
+    fn judge(&self) -> Option<Piece> {
+        let judge_line = |points: &[Point]| {
+            points
+                .iter()
+                .map(|point| self.piece(point))
+                .reduce(|acc, cur| {
+                    acc.zip(cur).and_then(|(a, b)| match a == b {
+                        true => Some(a),
+                        false => None,
+                    })
+                })
+                .flatten()
+        };
+
+        let lines = [
+            // horizontal
+            [Point::new(0, 0), Point::new(1, 0), Point::new(2, 0)],
+            [Point::new(0, 1), Point::new(1, 1), Point::new(2, 1)],
+            [Point::new(0, 2), Point::new(1, 2), Point::new(2, 2)],
+            // vertical
+            [Point::new(0, 0), Point::new(0, 1), Point::new(0, 2)],
+            [Point::new(1, 0), Point::new(1, 1), Point::new(1, 2)],
+            [Point::new(2, 0), Point::new(2, 1), Point::new(2, 2)],
+            // diagonal
+            [Point::new(0, 0), Point::new(1, 1), Point::new(2, 2)],
+            [Point::new(2, 0), Point::new(1, 1), Point::new(0, 2)],
+        ];
+
+        for points in lines.iter() {
+            if let Some(winner) = judge_line(&points[..]) {
+                return Some(winner);
+            }
+        }
+
+        None
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -74,6 +117,7 @@ fn main() -> io::Result<()> {
     let mut board = Board::new();
     let mut cursor = Cursor { x: 0, y: 0 };
     let mut next_turn = Piece::X;
+    let mut winner: Option<Piece> = None;
 
     loop {
         terminal.clear()?;
@@ -101,7 +145,10 @@ fn main() -> io::Result<()> {
                         Rect::new((4 * x + 1) as u16, (2 * y + 1) as u16, 3, 1),
                     );
 
-                    let text = Paragraph::new(format!("Next player: {}", next_turn));
+                    let text = Paragraph::new(match winner {
+                        None => format!("Next player: {}", next_turn),
+                        Some(winner) => format!("Winner: {}", winner),
+                    });
                     f.render_widget(text, Rect::new(16, 1, 16, 1));
 
                     let text = Paragraph::new("Press q to exit.");
@@ -120,16 +167,20 @@ fn main() -> io::Result<()> {
                 Key::Down => cursor.move_with(0, 1),
 
                 Key::Char(' ') => {
-                    let point = Point {
-                        x: cursor.x,
-                        y: cursor.y,
-                    };
-                    if let None = board.piece(&point) {
-                        board.put(&point, next_turn);
+                    if winner.is_none() {
+                        let point = Point {
+                            x: cursor.x,
+                            y: cursor.y,
+                        };
+                        if let None = board.piece(&point) {
+                            board.put(&point, next_turn);
 
-                        match next_turn {
-                            Piece::X => next_turn = Piece::O,
-                            Piece::O => next_turn = Piece::X,
+                            match next_turn {
+                                Piece::X => next_turn = Piece::O,
+                                Piece::O => next_turn = Piece::X,
+                            }
+
+                            winner = board.judge();
                         }
                     }
                 }
