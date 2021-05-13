@@ -35,6 +35,15 @@ enum Piece {
     X,
 }
 
+impl std::fmt::Display for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Piece::O => write!(f, "O"),
+            Piece::X => write!(f, "X"),
+        }
+    }
+}
+
 struct Board {
     pieces: [Option<Piece>; 9],
 }
@@ -44,15 +53,15 @@ impl Board {
         Board { pieces: [None; 9] }
     }
 
-    fn index_from_point(point: Point) -> usize {
+    fn index_from_point(point: &Point) -> usize {
         (point.x + point.y * 3) as usize
     }
 
-    fn piece(&self, point: Point) -> Option<Piece> {
+    fn piece(&self, point: &Point) -> Option<Piece> {
         self.pieces[Board::index_from_point(point)]
     }
 
-    fn put(&mut self, point: Point, piece: Piece) {
+    fn put(&mut self, point: &Point, piece: Piece) {
         self.pieces[Board::index_from_point(point)] = Some(piece)
     }
 }
@@ -64,6 +73,7 @@ fn main() -> io::Result<()> {
 
     let mut board = Board::new();
     let mut cursor = Cursor { x: 0, y: 0 };
+    let mut next_turn = Piece::X;
 
     loop {
         terminal.clear()?;
@@ -71,13 +81,12 @@ fn main() -> io::Result<()> {
         terminal.draw(|f| {
             for x in 0..3 {
                 for y in 0..3 {
-                    let peice = board.piece(Point { x, y });
+                    let piece = board.piece(&Point { x, y });
 
                     let cell = {
-                        let cell = Paragraph::new(match peice {
-                            None => "   ",
-                            Some(Piece::O) => " O ",
-                            Some(Piece::X) => " X ",
+                        let cell = Paragraph::new(match piece {
+                            None => "   ".to_string(),
+                            Some(piece) => format!(" {} ", piece),
                         });
 
                         if x == cursor.x && y == cursor.y {
@@ -90,7 +99,13 @@ fn main() -> io::Result<()> {
                     f.render_widget(
                         cell,
                         Rect::new((4 * x + 1) as u16, (2 * y + 1) as u16, 3, 1),
-                    )
+                    );
+
+                    let text = Paragraph::new(format!("Next player: {}", next_turn));
+                    f.render_widget(text, Rect::new(16, 1, 16, 1));
+
+                    let text = Paragraph::new("Press q to exit.");
+                    f.render_widget(text, Rect::new(16, 5, 16, 1));
                 }
             }
         })?;
@@ -104,13 +119,20 @@ fn main() -> io::Result<()> {
                 Key::Up => cursor.move_with(0, -1),
                 Key::Down => cursor.move_with(0, 1),
 
-                Key::Char(' ') => board.put(
-                    Point {
+                Key::Char(' ') => {
+                    let point = Point {
                         x: cursor.x,
                         y: cursor.y,
-                    },
-                    Piece::O,
-                ),
+                    };
+                    if let None = board.piece(&point) {
+                        board.put(&point, next_turn);
+
+                        match next_turn {
+                            Piece::X => next_turn = Piece::O,
+                            Piece::O => next_turn = Piece::X,
+                        }
+                    }
+                }
 
                 _ => {}
             };
